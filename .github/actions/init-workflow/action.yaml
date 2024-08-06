@@ -1,0 +1,66 @@
+name: "Initial Workflow"
+description: "Initial Workflow"
+
+inputs:
+  runner-nonprd:
+    required: true
+    description: "Label of Runner Nonprd"
+  runner-prd:
+    required: true
+    description: "Label of Runner prd"
+
+outputs:
+  environment:
+    description: "The environment of project"
+    value: ${{ steps.gen-env.outputs.environment }}
+  image-tag:
+    description: "The tag of image"
+    value: ${{ steps.tag-image.outputs.image }}
+  runner:
+    description: "The runner for run workflow"
+    value: ${{ steps.gen-env.outputs.runner }}
+    
+runs:
+  using: composite
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Generate Environment
+      id: gen-env
+      shell: bash
+      run: |
+        if [[ "${{github.ref_name}}" =~ ^develop.* || "${{github.ref_name}}" =~ ^feature.* ]]; then
+          echo "environment=dev" >> $GITHUB_OUTPUT
+          echo "runner=${{ inputs.runner-nonprd }}" >> $GITHUB_OUTPUT
+        fi
+
+        if [[ "${{github.ref_name}}" =~ ^release.* || "${{github.ref_name}}" =~ ^hotfix.*  ]]; then
+          echo "environment=stg" >> $GITHUB_OUTPUT
+          echo "runner=${{ inputs.runner-nonprd }}" >> $GITHUB_OUTPUT
+        fi
+
+        if [[ "${{github.ref_name}}" =~ ^main* ]]; then
+          echo "environment=main" >> $GITHUB_OUTPUT
+          echo "runner=${{ inputs.runner-nonprd }}" >> $GITHUB_OUTPUT
+        fi
+
+        if [[ "${{github.ref_name}}" =~ ^v.* ]]; then
+          echo "environment=prd" >> $GITHUB_OUTPUT
+          echo "runner=${{ inputs.runner-prd }}" >> $GITHUB_OUTPUT
+        fi
+    - uses: benjlevesque/short-sha@v3.0
+      id: short-sha
+      with:
+        length: 7
+    - name: Generate tag image
+      id: tag-image
+      shell: bash
+      env:
+        tag: ${{ steps.gen-env.outputs.environment }}-${{ steps.short-sha.outputs.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+        environment: ${{ steps.gen-env.outputs.environment }}
+      run: |
+        if [[ $environment == "prd" ]]; then
+          echo "image=${{ github.ref_name }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+        else
+          echo "image=$tag" >> $GITHUB_OUTPUT 
+        fi

@@ -1,0 +1,164 @@
+name: Feature Backend Service
+
+run-name: "Run Workflow: ${{ github.ref_name }}"
+
+on:
+  workflow_call:
+    inputs:
+      label-runner:
+        default: ubuntu-latest
+        type: string
+        description: "The label of the runner to execute the workflow"
+      ecr-registry:
+        type: string
+        required: true
+        description: "The registry of the ECR"
+      ecr-repository:
+        type: string
+        required: true
+        description: "The name of the ECR repository"
+      trivy-enable:
+        type: string
+        default: 'true'
+        description: "Flag indicating whether to enable Trivy vulnerability scanning"
+      trivy-bucket-name:
+        type: string
+        description: "The name of the S3 bucket for Trivy scan results"
+        default: trivy-security-scan-result
+      trivy-severity:
+        type: string
+        default: 'CRITICAL,HIGH'
+        description: "The severity levels of vulnerabilities to consider in Trivy scan"
+      trivy-s3-enable:
+        type: string
+        default: 'true'
+        description: "Flag indicating whether to enable S3 for Trivy scan results"
+      trivy-artifact-enable:
+        type: string
+        default: 'true'
+        description: "Flag indicating whether to enable github artifact for Trivy scan results"
+      slack-channel:
+        type: string
+        required: true
+        description: "The Slack channel to notify about workflow status"
+      java-version:
+        type: string
+        default: '17'
+        description: "The version of Java to use for validation and build"
+      java-format-enable:
+        type: boolean
+        default: true
+        description: "Flag indicating whether to enable java format"
+      unit-test-enable:
+        type: boolean
+        default: true
+        description: "Flag indicating whether to enable unit-test" 
+      code-quality-enable:
+        type: boolean
+        default: true
+        description: "Flag indicating whether to enable code-quality" 
+      maven-version:
+        type: string
+        default: '3.9.4'
+        description: "The version of Maven to use for validation and build"
+      environment:
+        type: string
+        required: true
+        description: "The environment where the service will be deployed"
+      container-sonarqube:
+        type: string
+        description: "Container sonarqube"
+        default: 654654479736.dkr.ecr.me-central-1.amazonaws.com/sonarqube-scan-action:10.0-ubuntu-24.04-3
+    secrets:
+        slack-webhook:
+          required: true
+          description: "The webhook URL for Slack notifications"
+        sonar_token:
+          required: true
+          description: "The sonarqube token"
+
+jobs:
+  commitlint:
+    name: Commitlint
+    runs-on: ${{ inputs.label-runner }}
+    steps:
+      - name: Commitlint
+        uses: nxz-group/github-shared-workflows/.github/actions/commitlint@main
+
+  validate:
+    name: Java Validate
+    needs:
+      - commitlint
+    uses: nxz-group/github-shared-workflows/.github/workflows/function-validate-java.yaml@main
+    with:
+      java-version: ${{ inputs.java-version }}
+      maven-version: ${{ inputs.maven-version }}
+      label-runner: ${{ inputs.label-runner }}
+      java-format-enable: ${{ inputs.java-format-enable }}
+      unit-test-enable: ${{ inputs.unit-test-enable }}
+      code-quality-enable: ${{ inputs.code-quality-enable }}
+      container-sonarqube: ${{ inputs.container-sonarqube }}
+    secrets:
+      sonar_token: ${{ secrets.sonar_token }}
+
+  build:
+    name: Build Code
+    needs:
+      - validate
+    runs-on: ${{ inputs.label-runner }}
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Initial variable
+        id: init-variable
+        uses: nxz-group/github-shared-workflows/.github/actions/generate-tag@main
+        with:
+          environment: ${{ inputs.environment }}
+          ecr-registry: ${{ inputs.ecr-registry }}
+          ecr-repository: ${{ inputs.ecr-repository }}
+
+      - name: Build Application
+        id: build-app
+        uses: nxz-group/github-shared-workflows/.github/actions/build-docker-image@main
+        with:
+          image-name: ${{ steps.init-variable.outputs.image-full-name }}
+          ecr-repository: ${{ inputs.ecr-repository }}
+
+      - name: Trivy vulnerability scanner
+        if: inputs.trivy-enable == 'true'
+        uses: nxz-group/github-shared-workflows/.github/actions/trivy-security-scan@main
+        with:
+          environment: ${{ inputs.environment }}
+          image-ref: ${{ steps.init-variable.outputs.image-full-name }}
+          severity: CRITICAL
+          exit-code: 1
+          upload-artifact-enable: false
+
+      - name: Trivy report
+        if: inputs.trivy-enable == 'true' && always()
+        uses: nxz-group/github-shared-workflows/.github/actions/trivy-security-scan@main
+        with:
+          environment: ${{ inputs.environment }}
+          image-ref: ${{ steps.init-variable.outputs.image-full-name }}
+          s3-bucket: ${{ inputs.trivy-bucket-name}}
+          upload-result-s3-enable: ${{ inputs.trivy-s3-enable }}
+          severity: ${{ inputs.trivy-severity }}
+          exit-code: 0
+          upload-artifact-enable: ${{ inputs.trivy-artifact-enable }}
+
+  notify:
+    needs: 
+      - commitlint
+      - validate
+      - build
+    name: Notification
+    if: always()
+    runs-on: ${{ inputs.label-runner }}
+    permissions:
+      actions: read
+    steps:
+      - name: Notify Slack
+        uses: nxz-group/github-shared-workflows/.github/actions/slack-notification@main
+        with:
+          slack-webhook: ${{ secrets.slack-webhook }}
+          slack-channel: ${{ inputs.slack-channel }}
+          github-token: ${{ secrets.GITHUB_TOKEN }} 

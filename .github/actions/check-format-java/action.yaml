@@ -1,0 +1,37 @@
+name: "Check Format Java"
+description: "Action for Check Code Format of Java"
+
+inputs:
+  java-version:
+    required: true
+    description: "The version of Java"
+  maven-version:
+    required: true
+    description: "The version of maven"
+  java-format-files:
+    required: false
+    description: "The files to java format"
+    default: "src/main/**/*.java"
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Maven Action
+      uses: s4u/setup-maven-action@main
+      with:
+        java-version: ${{ inputs.java-version }}
+        maven-version: ${{ inputs.maven-version }}
+    - name: Java Format
+      uses: axel-op/googlejavaformat-action@v3
+      with:
+        args: "--replace"
+        files: ${{ inputs.java-format-files }}
+        skip-commit: true
+    - name: Print diffs
+      shell: bash
+      run: |
+        git diff | diff-so-fancy
+        git diff --shortstat --exit-code

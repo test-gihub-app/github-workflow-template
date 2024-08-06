@@ -1,0 +1,31 @@
+name: "Install and Build Frontend"
+description: "Install Packages and Build Frontend"
+
+inputs:
+  node-version:
+    required: true
+    description: "The version of Node"
+  
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    
+    - name: Cache node_modules
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node_modules-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node_modules-
+
+    - name: Install dependencies if cache is not hit
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci

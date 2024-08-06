@@ -1,0 +1,55 @@
+name: "Install and Build Frontend"
+description: "Install Packages and Build Frontend"
+
+inputs:
+  node-version:
+    required: true
+    description: "The version of Node"
+  upload-artifact:
+    required: false
+    description: 'Enable/Disable upload artifact'
+    default: "false"
+  artifact-retention-day:
+    required: false
+    description: 'Retention for store artifact'
+    default: "15"
+  frontend-build-path:
+    required: false
+    description: 'Folder output from run build'
+    default: "build"
+  update-config:
+    required: false
+    description: 'Control Copy config file true/false'
+    default: "true"
+  source-config-path:
+    required: true
+    description: "Source config path"
+  target-config-path:
+    required: true
+    description: "Traget config path"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependency
+      uses: nxz-group/github-shared-workflows/.github/actions/install-dependency@main
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Copy config file
+      if: ${{ inputs.update-config == 'true' }}
+      shell: bash
+      run: cp ${{ inputs.source-config-path }} ${{ inputs.target-config-path }}
+        
+    - name: Build Frontend
+      shell: bash
+      run: npm run build
+    
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.frontend-build-path }}
+        path: ./${{ inputs.frontend-build-path}}
+        retention-days: ${{ inputs.artifact-retention-day }}
+      if: ${{ inputs.upload-artifact == 'true' }}

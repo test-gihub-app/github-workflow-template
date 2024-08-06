@@ -1,0 +1,86 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/automate-terraform"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/build-push-image-to-ecr"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"      
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/check-format-java"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"        
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/commitlint"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/deploy-frontend-to-cloudfront-with-s3"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/init-workflow"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/install-and-build-frontend"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/python-format"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/python-lint"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"  
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/python-test"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/retagging-image"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/unit-test-java"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/update-image-tag"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: "github-actions"
+    directory: ".github/actions/validate-java"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(deps)"

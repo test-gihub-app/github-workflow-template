@@ -1,0 +1,153 @@
+name: "Automate terraform"
+description: "Automates the execution of Terraform workflows"
+
+inputs:
+  github-app-token:
+    required: true
+    description: "GitHub app token"
+  work-directory:
+    required: true
+    description: "Path of terraform"
+  approvers:
+    required: true
+    description: "Github user for approve before terraform apply"
+  tflint-enable:
+    required: false
+    default: 'true'
+    description: "Control enable/disable tflint"
+  text-limit:
+    required: false
+    description: "Maximum character limit for comment messages"
+    default: '65000'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout to repository
+      uses: actions/checkout@v4
+
+    - name: Setup terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Authenticate to git with bot token
+      shell: bash
+      run: |
+        echo ${{ inputs.github-app-token }} | gh auth login --with-token
+
+    - name: Terraform Format check
+      shell: bash
+      id: fmt
+      if: github.event_name == 'pull_request'
+      working-directory: ${{ inputs.work-directory }}
+      run: terraform fmt -check
+
+    - name: Terraform init
+      shell: bash
+      id: init
+      working-directory: ${{ inputs.work-directory }}
+      run: terraform init
+
+    - name: tflint
+      uses: reviewdog/action-tflint@v1
+      if: ${{ inputs.tflint-enable == 'true' }} && github.event_name == 'pull_request'
+      with:
+        github_token: ${{ inputs.github-app-token }}
+        working_directory: ${{ inputs.work-directory }}
+        reporter: github-pr-review # Optional. Change reporter
+        fail_on_error: "true"
+        filter_mode: "nofilter"
+
+    - name: Terraform plan
+      shell: bash
+      id: plan
+      working-directory: ${{ inputs.work-directory }}
+      run: |
+        terraform plan -no-color -out=tfplan | tee tfplan_output.txt
+
+    - name: Workflow URL
+      id: workflow-url
+      shell: bash
+      run: |
+        WORKFLOW="https://github.com/${{ github.repository }}/actions/runs/$GITHUB_RUN_ID"
+        WORKFLOW_URL="[$WORKFLOW]($WORKFLOW)"
+        echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_OUTPUT
+
+    - name: Check Plan Length
+      shell: bash
+      working-directory: ${{ inputs.work-directory }}
+      # env:
+      #   PLAN: ${{ steps.plan.outputs.stdout }}
+      run: |
+        # sed -i '' "s/\`/'/g" tfplan_output.txt
+        sed -i 's/`/'\''/g' tfplan_output.txt
+        plan_length=$(cat tfplan_output.txt | wc -c)
+        echo $plan_length
+        if [ "$plan_length" -gt ${{ inputs.text-limit }} ]; then
+          message="Terraform Plan length exceeds ${{ inputs.text-limit }} characters. See more in action workflow" 
+          echo "PLAN_OUTPUT=$message" >> $GITHUB_ENV
+        else
+          message=$(<tfplan_output.txt)
+          echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$message" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        fi
+
+    - name: Update Pull Request
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      # env:
+      #   PLAN: "${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ inputs.github-app-token }}
+        script: |
+          let output = `#### Terraform directory: ⚙️\`${{ inputs.work-directory }}\`
+          #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`terraform\n
+          ${{ env.PLAN_OUTPUT }}
+          \`\`\`
+
+          </details>
+
+          Workflow Url: ${{ steps.workflow-url.outputs.workflow_url }}
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Create manual approve
+      uses: nxz-group/manual-approve-action@main
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      with:
+        secret: ${{ inputs.github-app-token }}
+        approvers: ${{ inputs.approvers }}
+        minimum-approvals: 1
+        issue-title: "Terraform apply: ${{ inputs.work-directory }}"
+        issue-body: |
+          ## Please approve or deny the Terraform apply in: ${{ inputs.work-directory }}
+          <details><summary>Terraform Plan</summary>
+          <p>
+
+          ```shell
+          ${{ env.PLAN_OUTPUT }}
+          ```
+          </p>
+          </details>
+
+          Workflow Url: ${{ steps.workflow-url.outputs.workflow_url }}
+
+    - name: Terraform apply
+      shell: bash
+      id: apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      working-directory: ${{ inputs.work-directory }}
+      run: terraform apply "tfplan"

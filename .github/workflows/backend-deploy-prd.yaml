@@ -1,0 +1,109 @@
+name: Deploy Production Backend Service
+
+run-name: "Run Workflow: ${{ github.ref_name }}"
+
+on:
+  workflow_call:
+    inputs:
+      label-runner:
+        default: ubuntu-latest
+        type: string
+        description: "The label of the runner to execute the workflow"
+      argocd-ropoitory:
+        type: string
+        required: true
+        description: "The name of ArgoCD repository"
+      stg-argocd-config-path:
+        type: string
+        required: true
+        description: "The path to the staging ArgoCD configuration files"
+      argocd-config-path:
+        type: string
+        required: true
+        description: "The path to the production ArgoCD configuration files"
+      ecr-repository:
+        type: string
+        required: true
+        description: "The name of the ECR repository"
+      stg-ecr-registry:
+        type: string
+        required: true
+        description: "The URL of the staging ECR registry"
+      prd-ecr-registry:
+        type: string
+        required: true
+        description: "The URL of the production ECR registry"
+      slack-channel:
+        type: string
+        required: true
+        description: "The Slack channel to notify about workflow status"
+      environment:
+        type: string
+        default: 'prd'
+        description: "The environment where the service will be deployed"
+
+    secrets:
+        github-app-id:
+          required: true
+          description: "The GitHub App ID for authentication"
+        github-app-private-key:
+          required: true
+          description: "The private key of the GitHub App for authentication"
+        slack-webhook:
+          required: true
+          description: "The webhook URL for Slack notifications"
+
+jobs:
+  deploy:
+    name: Retag and push image
+    runs-on: ${{ inputs.label-runner }}
+    steps:
+      - name: Initial variable
+        id: init-variable
+        uses: nxz-group/github-shared-workflows/.github/actions/generate-tag@main
+        with:
+          environment: ${{ inputs.environment }}
+          ecr-registry: ${{ inputs.prd-ecr-registry }}
+          ecr-repository: ${{ inputs.ecr-repository }}
+
+      - name: Generate token
+        id: generate-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.github-app-id }}
+          private_key: ${{ secrets.github-app-private-key }}
+
+      - name: Retag and Push Image
+        uses: nxz-group/github-shared-workflows/.github/actions/retagging-image@main
+        with:
+          stg-argocd-configs-path: ${{ inputs.stg-argocd-config-path }}
+          ecr-repository: ${{ inputs.ecr-repository }}
+          stg-ecr-registry: ${{ inputs.stg-ecr-registry }}
+          prd-ecr-registry:  ${{ inputs.prd-ecr-registry }}
+          tag-version: ${{ steps.init-variable.outputs.image-tag }}
+          github-token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Update Image Tag
+        uses: nxz-group/github-shared-workflows/.github/actions/update-image-tag@main
+        with:
+          argocd-repo: ${{ inputs.argocd-ropoitory }}
+          image-tag: ${{ steps.init-variable.outputs.image-tag }}
+          argocd-configs-path: ${{ inputs.argocd-config-path }}
+          environment: ${{ inputs.environment }}
+          github-token: ${{ steps.generate-token.outputs.token }}
+
+  notify:
+    name: Notification
+    if: always()
+    needs:
+      - deploy
+    runs-on: ${{ inputs.label-runner }}
+    permissions:
+      actions: read
+    steps:
+      - name: Notify Slack
+        uses: nxz-group/github-shared-workflows/.github/actions/slack-notification@main
+        with:
+          slack-webhook: ${{ secrets.slack-webhook }}
+          slack-channel: ${{ inputs.slack-channel }}
+          github-token: ${{ secrets.GITHUB_TOKEN }} 

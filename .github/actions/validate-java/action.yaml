@@ -1,0 +1,72 @@
+name: "Validate Java"
+description: "Action for validate for Java"
+
+inputs:
+  java-version:
+    required: true
+    description: "The version of Java"
+  maven-version:
+    required: true
+    description: "The version of maven"
+  unit-test-enabled:
+    required: false
+    description: "The variable for enable unit-test"
+    default: 'false'
+  java-format-enabled:
+    required: false
+    description: "The variable for enable java-format"
+    default: 'false'
+  java-format-files:
+    required: false
+    description: "The files to java format"
+    default: "src/main/**/*.java"
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Echo Install Java and Maven
+      if: ${{ inputs.java-format-enabled == 'true' }}
+      shell: bash
+      run: |
+        echo "################################"
+        echo "Install Java and Maven Step"
+        echo "################################"
+    - name: Setup Maven Action
+      uses: s4u/setup-maven-action@main
+      with:
+        java-version: ${{ inputs.java-version }}
+        maven-version: ${{ inputs.maven-version }}
+    - name: Echo Unit Test
+      if: ${{ inputs.unit-test-enabled == 'true' }}
+      shell: bash
+      run: |
+        echo "################################"
+        echo "Unit Test Step"
+        echo "################################"
+    - name: Run Unit Test
+      if: ${{ inputs.unit-test-enabled == 'true' }}
+      shell: bash
+      run: mvn test 
+    - name: Echo Java Format
+      if: ${{ inputs.java-format-enabled == 'true' }}
+      shell: bash
+      run: |
+        echo "################################"
+        echo "Java Format Step"
+        echo "################################"
+    - name: Java Format
+      if: ${{ inputs.java-format-enabled == 'true' }}
+      uses: axel-op/googlejavaformat-action@v3
+      with:
+        args: "--replace"
+        files: ${{ inputs.java-format-files }}
+        skip-commit: true
+    - name: Print diffs
+      if: ${{ inputs.java-format-enabled == 'true' }}
+      shell: bash
+      run: |
+        npm i diff-so-fancy --global
+        git diff | diff-so-fancy
+        git diff --shortstat --exit-code

@@ -1,0 +1,42 @@
+name: "Sonarqube Java"
+description: "SonarQube analysis, and checks the quality gate status"
+
+inputs:
+  sonar_host_url:
+    required: true
+    description: "The SonarQube server URL"
+  sonar_token:
+    required: true
+    description: "The authentication token for SonarQube"
+  enforce_quality_gate:
+    description: "Enforce quality gate"
+    default: 'false'
+runs:
+  using: composite   
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Check file is existed
+      shell: bash
+      run: pwd && ls -lash
+
+    - name: Java build
+      shell: bash
+      run: mvn package
+
+    - name: Sonar scan
+      env:
+        SONAR_HOST_URL: ${{ inputs.sonar_host_url }}
+        SONAR_TOKEN: ${{ inputs.sonar_token }}
+      shell: bash
+      run: sonar-scanner
+
+    - name: SonarQube Quality Gate check
+      if: inputs.enforce_quality_gate == 'true'
+      uses: nxz-group/sonarqube-quality-gate-action@main
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar_token }}
+        SONAR_HOST_URL: ${{ inputs.sonar_host_url }}
+
+  

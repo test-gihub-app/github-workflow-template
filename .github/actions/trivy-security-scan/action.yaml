@@ -1,0 +1,90 @@
+name: "Trivy Security Scan"
+description: "Action for security scan image by Trivy"
+
+inputs:
+  environment:
+    required: true
+    description: "The name of environment"
+  image-ref:
+    required: true
+    description: "The ref of image"
+  vuln-type:
+    required: false
+    description: "The type of vulnerability"
+    default: "os,library"
+  severity:
+    required: false
+    description: "The type of severity"
+    default: "CRITICAL,HIGH"
+  format:
+    required: false
+    description: "The format of security scan result"
+    default: "template"
+  template: 
+    required: false
+    description: "use an existing template for rendering output (@/contrib/gitlab.tpl, @/contrib/junit.tpl, @/contrib/html.tpl)"
+    default: "@/contrib/html.tpl"
+  exit-code:
+    required: false
+    description: "The exit code when specified vulnerabilities are found"
+    default: "0"
+  output-extention:
+    required: false
+    description: "The extention of output file"
+    default: "html"
+  upload-result-s3-enable:
+    required: false
+    description: "The variable for enable upload security scan result to s3"
+    default: "false"
+  s3-region:
+    required: false
+    description: "The region of S3 bucket"
+    default: ap-southeast-1
+  s3-bucket:
+    required: false
+    description: "The name of S3 bucket"
+    default: trivy-security-scan-result
+  upload-artifact-enable:
+    required: false
+    description: 'The variable for enable upload security scan result to artifact'
+    default: "true"
+  artifact-name:
+    required: false
+    description: 'The name of artifact-name'
+    default: "trivy-scan-result"
+
+runs:
+  using: composite
+  steps:
+    - name: Generate Short Sha
+      uses: benjlevesque/short-sha@v3.0
+      id: short-sha
+      with:
+        length: 8
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@0.12.0
+      with:
+        image-ref: ${{ inputs.image-ref }}
+        vuln-type: ${{ inputs.vuln-type }}
+        severity: ${{ inputs.severity }}
+        format: ${{ inputs.format }}
+        template: ${{ inputs.template }}
+        exit-code: ${{ inputs.exit-code }}
+        output: '${{ inputs.environment }}-${{ steps.short-sha.outputs.sha }}-${{ github.run_number }}.${{ inputs.output-extention }}'
+
+    - name: Upload Trivy scan results to S3 bucket
+      if: always() && inputs.upload-result-s3-enable == 'true'
+      shell: bash
+      run: |
+        aws s3 cp ${{ inputs.environment }}-${{ steps.short-sha.outputs.sha }}-${{ github.run_number }}.${{ inputs.output-extention }} \
+          s3://${{ inputs.s3-bucket }}/$(echo ${{ github.repository }} | cut  -d '/' -f 2)/$(date "+%Y-%m-%d")/ \
+          --region ${{ inputs.s3-region }}
+
+    - name: Upload Trivy scan results to GitHub artifact
+      uses: actions/upload-artifact@v4
+      if: always() && inputs.upload-artifact-enable == 'true'
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ./${{ inputs.environment }}-${{ steps.short-sha.outputs.sha }}-${{ github.run_number }}.${{ inputs.output-extention }}
+        retention-days: 30

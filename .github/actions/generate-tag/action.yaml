@@ -1,0 +1,45 @@
+name: "Generate Tag"
+description: "Initial Workflow"
+
+inputs:
+  environment:
+    required: true
+    description: "The environment of project dev/stg/prd"
+  ecr-registry:
+    required: true
+    description: "ecr registry"
+  ecr-repository:
+    required: true
+    description: "ecr repository"
+outputs:
+  image-tag:
+    description: "The tag of image"
+    value: ${{ steps.tag-image.outputs.image }}
+  image-full-name:
+    description: "The tag of image"
+    value: ${{ steps.tag-image.outputs.image_full }}
+    
+runs:
+  using: composite
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - uses: benjlevesque/short-sha@v3.0
+      id: short-sha
+      with:
+        length: 7
+
+    - name: Generate tag image
+      id: tag-image
+      shell: bash
+      env:
+        tag-nonprd: ${{ inputs.environment }}-${{ steps.short-sha.outputs.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+      run: |
+        if [[ ${{ inputs.environment }} == "prd" ]]; then
+          echo "image=${{ github.ref_name }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+          echo "image_full=${{ inputs.ecr-registry }}/${{ inputs.ecr-repository }}:${{ github.ref_name }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+        else
+          echo "image=${{ env.tag-nonprd }}" >> $GITHUB_OUTPUT
+          echo "image_full=${{ inputs.ecr-registry }}/${{ inputs.ecr-repository }}:${{ env.tag-nonprd }}" >> $GITHUB_OUTPUT
+        fi

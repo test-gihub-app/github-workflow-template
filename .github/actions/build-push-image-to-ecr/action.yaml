@@ -1,0 +1,60 @@
+name: build-push-image
+description: build and push image to ECR
+inputs:
+  image-tag:
+     description: "image tag"
+     required: true
+  ecr-repository:
+     description: "ECR repository name"
+     required: true
+  dockerfile-path:
+    description: "path for select dockerfile"
+    default: ./Dockerfile
+    required: false
+  region:
+    description: "specific region to use"
+    default: me-central-1
+    required: false
+  aws-account-id:
+    description: "specific aws account id to use"
+    required: true
+  push-image:
+    description: "condition push image to ECR"
+    default: 'true'
+
+outputs:
+  image-name:
+    description: "The full name image"
+    value: ${{ steps.gen-env.outputs.image_full }}
+ 
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout to repository
+      uses: actions/checkout@v4
+
+    - name: Generate image name
+      shell: bash
+      id: gen-env
+      env:
+        ECR_REGISTRY: '${{ inputs.aws-account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com'
+        ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+      run: |
+        echo "image_full=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Build tag
+      shell: bash
+      env:
+        IMAGE: ${{ steps.gen-env.outputs.image_full }}
+      run: |
+        docker build -f ${{ inputs.dockerfile-path }} -t $IMAGE .
+
+    - name: Push image to ECR
+      shell: bash
+      if: inputs.push-image == 'true'
+      env:
+        IMAGE: ${{ steps.gen-env.outputs.image_full }}
+      run: |
+        docker push $IMAGE
+        echo "Push image success $IMAGE"

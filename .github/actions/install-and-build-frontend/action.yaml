@@ -1,0 +1,76 @@
+name: "Install and Build Frontend"
+description: "Install Packages and Build Frontend"
+
+inputs:
+  node-version:
+    required: true
+    description: "The version of Node"
+  package-manager:
+    required: true
+    description: 'The package manager to use (Yarn or NPM)'
+    default: "npm"
+  upload-artifact:
+    required: false
+    description: 'Enable/Disable upload artifact'
+    default: "false"
+  artifact-retention-day:
+    required: false
+    description: 'Retention for store artifact'
+    default: "15"
+  frontend-build-path:
+    required: false
+    description: 'Folder output from run build'
+    default: "build"
+  update-config:
+    required: false
+    description: 'Control Copy config file true/false'
+    default: "false"
+  source-config-path:
+    required: false
+    description: "Source config path"
+  target-config-path:
+    required: false
+    description: "Traget config path"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ ${{ inputs.package-manager }} == "yarn" ]; then
+          yarn install
+        elif [ ${{ inputs.package-manager }} == "npm" ]; then
+          npm install
+        else
+          echo "not support we are only support npm/yarn"
+          exit 1
+        fi
+
+    - name: Copy config file
+      if: ${{ inputs.update-config == 'true' }}
+      shell: bash
+      run: cp ${{ inputs.source-config-path }} ${{ inputs.target-config-path }}
+        
+    - name: Build Frontend
+      shell: bash
+      run: |
+        if [ ${{ inputs.package-manager }} == "yarn" ]; then
+          yarn build
+        elif [ ${{ inputs.package-manager }} == "npm" ]; then
+          npm run build
+        else
+          echo "not support we are only support npm/yarn"
+          exit 1
+        fi
+    
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.frontend-build-path }}
+        path: ./${{ inputs.frontend-build-path}}
+        retention-days: ${{ inputs.artifact-retention-day }}
+      if: ${{ inputs.upload-artifact == 'true' }}

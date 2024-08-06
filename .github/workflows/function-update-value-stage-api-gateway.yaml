@@ -1,0 +1,41 @@
+name: Update variable in stage on API-Gateway
+
+on:
+  workflow_call:
+    inputs:
+      label-runner:
+        description: "label for select runner develop or production"
+        type: string
+        default: develop
+      api-id:
+        required: true
+        type: string
+      api-stage-name:
+        required: true
+        type: string
+      api-stage-variable-key:
+        required: true
+        type: string
+      api-stage-variable-value:
+        required: true
+        type: string
+
+jobs:
+  update-stage-variable:
+    name: Update variable in stage ona API-Gateway
+    runs-on: 
+      - self-hosted
+      - ${{ inputs.label-runner }}
+    env:
+      API_ID: ${{ inputs.api-id }}
+      API_STAGE_NAME: ${{ inputs.api-stage-name }}
+      STAGE_VAR_KEY: ${{ inputs.api-stage-variable-key }}
+      STAGE_VAR_VALUE: ${{ inputs.api-stage-variable-value }}
+    steps:
+      - name: Update variable in stage on API-Gateway
+        id: update-stage-variable
+        run: |
+          aws apigateway update-stage \
+          --rest-api-id ${{ env.API_ID }} \
+          --stage-name '${{ env.API_STAGE_NAME }}' \
+          --patch-operations "op='replace',path='/variables/${{ env.STAGE_VAR_KEY }}',value='${{ env.STAGE_VAR_VALUE }}'"

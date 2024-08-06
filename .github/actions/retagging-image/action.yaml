@@ -1,0 +1,88 @@
+name: "Retagging an image"
+description: "Retag image from Nonprd to Prd"
+
+inputs:
+  argocd-repository:
+    required: true
+    description: 'ArgoCD app nonprd repository'
+    default: 'nxz-group/argocd-nonprd-apps-eks'
+  argocd-path:
+    required: true
+    description: 'ArgoCD path'
+    default: './argocd-nonprd-apps-eks'
+  stg-argocd-configs-path:
+    description: "The config path of ArgoCD"
+    required: true
+  ecr-repository:
+    required: true
+    description: "ECR repository name of Application"
+  stg-ecr-registry:
+    required: true
+    description: "ECR registry nonprd"
+  prd-ecr-registry:
+    required: true
+    description: "ECR registry prd"
+  tag-version:
+    required: true
+    description: "New tag version for deployment"
+  github-token:
+    description: "GitHub token"
+    required: true
+  key-edit:
+    description: "The key to edit"
+    default: .image.tag
+    required: false
+
+outputs:
+  image-name:
+    description: "The full name image"
+    value: ${{ steps.push-image.outputs.image_full }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Argocd Nonprd Reposiory 
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.argocd-repository }}
+        token: ${{ inputs.github-token }}
+        path: ${{ inputs.argocd-path }}
+
+    - name: Get image tag
+      id: get-image-tag
+      shell: bash
+      run: |
+        cd ${{ inputs.argocd-path }}
+        tag=$(yq -r ${{ inputs.key-edit }} ${{ inputs.stg-argocd-configs-path }})
+        echo "image_tag=$tag" >> $GITHUB_OUTPUT
+
+    - name: Pull image ECR Nonprd
+      id: stg-image-tag
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ inputs.stg-ecr-registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+        IMAGE_TAG_STG: ${{ steps.get-image-tag.outputs.image_tag }}
+      run: |
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_STG
+        echo "old_image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_STG" >> $GITHUB_OUTPUT
+
+    - name: Retag image
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ inputs.prd-ecr-registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+        OLD_IMAGE_TAG: ${{ steps.stg-image-tag.outputs.old_image }}
+        PRD_TAG_VERSION: ${{ inputs.tag-version }}
+      run: docker tag $OLD_IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$PRD_TAG_VERSION
+
+    - name: Push image
+      shell: bash
+      id: push-image
+      env:
+        ECR_REGISTRY: ${{ inputs.prd-ecr-registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+        PRD_TAG_VERSION: ${{ inputs.tag-version }}
+      run: |
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$PRD_TAG_VERSION
+        echo "image_full=$ECR_REGISTRY/$ECR_REPOSITORY:$PRD_TAG_VERSION" >> $GITHUB_OUTPUT
