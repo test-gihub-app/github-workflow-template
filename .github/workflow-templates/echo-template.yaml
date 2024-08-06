@@ -1,0 +1,12 @@
+name: Java Validate
+
+on:
+  workflow_call:
+
+jobs:
+  start:
+    name: Start
+    runs-on: ubuntu-latest
+    steps:
+    - name: echo enable status
+      run: echo hello
