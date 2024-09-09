@@ -2,6 +2,7 @@ name: Java Validate
 
 on:
   push:
+  workflow_call:
 
 jobs:
   start:
