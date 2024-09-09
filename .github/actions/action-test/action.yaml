@@ -1,0 +1,12 @@
+name: "Validate Java"
+description: "Action for validate for Java"
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - run: echo "hello"
+      shell: bash
+     
