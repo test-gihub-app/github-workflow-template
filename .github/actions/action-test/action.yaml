@@ -6,6 +6,6 @@ runs:
   steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - uses: test-gihub-app/github-workflow-template/.github/actions/hello
+    ## test-gihub-app/github-workflow-template
+    - uses: ././.github/actions/hello
      
