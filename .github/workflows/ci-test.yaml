@@ -8,8 +8,7 @@ jobs:
     name: Start
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: echo enable status
-      run: echo hello
-
-    - uses: ././.github/actions/action-test
+      - uses: ././.github/actions/action-test
