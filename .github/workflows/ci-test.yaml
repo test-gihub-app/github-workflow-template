@@ -3,6 +3,11 @@ name: Java Validate
 on:
   push:
   workflow_call:
+    inputs:
+      ref-name:
+        default: ${{ github.ref_name }}
+        type: string
+        description: "The label of the runner to execute the workflow"
 
 jobs:
   start:
@@ -12,4 +17,4 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - uses: test-gihub-app/github-workflow-template/.github/actions/action-test@${{ github.ref_name }}
+      - uses: test-gihub-app/github-workflow-template/.github/actions/action-test
